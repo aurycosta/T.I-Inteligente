@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>T.I Inteligente - Monitoramento</title>
+    <style>
+        :root {
+            --bg-color: #f4f7f6;
+            --primary: #2c3e50;
+            --secondary: #18bc9c;
+            --text: #333;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text); margin: 0; padding: 20px; }
+        h1, h2, h3 { color: var(--primary); }
+        
+        /* Layout e Header */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
+        .stats { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+        
+        .stat-box { background: white; padding: 10px 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-weight: bold; border: 2px solid transparent; }
+        
+        .btn-stat { background: white; border: 2px solid; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 1rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .btn-stat.pendente { border-color: #e67e22; color: #e67e22; }
+        .btn-stat.pendente:hover { background: #e67e22; color: white; }
+        .btn-stat.concluida { border-color: #27ae60; color: #27ae60; }
+        .btn-stat.concluida:hover { background: #27ae60; color: white; }
+        
+        /* Controles */
+        .controls { display: flex; gap: 15px; margin-bottom: 30px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-wrap: wrap; align-items: flex-end;}
+        input, select, button { padding: 10px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
+        .btn-primary { background-color: var(--secondary); color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-primary:hover { background-color: #128f76; }
+        
+        /* Grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+        .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 15px; }
+        .card-header { display: flex; justify-content: space-between; border-bottom: 2px solid var(--bg-color); padding-bottom: 10px; }
+        .card-header h2 { margin: 0; font-size: 1.2rem; }
+        .categoria-badge { background: var(--primary); color: white; padding: 3px 8px; border-radius: 12px; font-size: 0.8rem; height: fit-content;}
+        
+        /* Cores Dinâmicas Proporcionais */
+        .status-box { padding: 10px; border-radius: 5px; color: white; font-weight: bold; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);}
+        .btn-ok { background: rgba(255,255,255,0.3); border: 1px solid white; padding: 5px 10px; color: white; border-radius: 4px; cursor: pointer; transition: 0.2s;}
+        .btn-ok:hover { background: white; color: black; text-shadow: none; }
+        
+        .safe { background-color: #27ae60; color: white; } /* Verde - Mais da metade do tempo */
+        .warning-light { background-color: #f39c12; } /* Laranja Claro - Entrando na metade final */
+        .warning-strong { background-color: #d35400; } /* Laranja Forte - Faltando pouco */
+        .danger-light { background-color: #e74c3c; } /* Vermelho - Quase esgotando */
+        .critical { background-color: #ff0000; animation: blink 1s infinite; } /* Vermelho Piscante - Dia do vencimento/Atrasado */
+
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+
+        /* Tarefas */
+        .add-task { display: flex; gap: 5px; margin-top: 10px; }
+        .add-task input { flex: 1; padding: 5px; }
+        .add-task button { padding: 5px 15px; }
+        
+        /* Modais */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 1000;}
+        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 300px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .modal-content.wide { width: 90%; max-width: 900px; max-height: 90vh; overflow-y: auto; }
+        
+        /* Tabela Relatório */
+        .table-relatorio { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .table-relatorio th, .table-relatorio td { border-bottom: 1px solid #ddd; padding: 12px; text-align: left; }
+        .table-relatorio th { background: var(--primary); color: white; position: sticky; top: 0;}
+        .table-relatorio tr:hover { background-color: #f9f9f9; }
+        .badge-tipo { padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; color: white; font-weight: bold;}
+        .badge-limpeza { background: #3498db; }
+        .badge-peca { background: #8e44ad; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🖥️ T.I Inteligente</h1>
+        <div class="stats">
+            <div class="stat-box">Total Máquinas: <span id="stat-maquinas">0</span></div>
+            <button class="btn-stat pendente" onclick="abrirRelatorio('pendente')">Tarefas Pendentes: <span id="stat-pendentes">0</span></button>
+            <button class="btn-stat concluida" onclick="abrirRelatorio('concluida')">Tarefas Concluídas: <span id="stat-concluidas">0</span></button>
+        </div>
+    </div>
+
+    <!-- Controles de Ação -->
+    <div class="controls">
+        <div>
+            <label>Código/IP (Ex: 255):</label><br>
+            <input type="text" id="cad-codigo" placeholder="001, 255...">
+        </div>
+        <div>
+            <label>Local/Categoria:</label><br>
+            <input type="text" id="cad-categoria" placeholder="Frente de Caixa, Depósito...">
+        </div>
+        <div>
+            <button class="btn-primary" onclick="cadastrarMaquina()">Cadastrar PC</button>
+        </div>
+        <div style="margin-left: auto;">
+            <label>Buscar PC ou Categoria:</label><br>
+            <input type="text" id="busca" placeholder="Buscar..." onkeyup="renderizarMaquinas()">
+        </div>
+    </div>
+
+    <!-- Container das Máquinas -->
+    <div class="grid" id="maquinas-grid">
+        <!-- Cards gerados via JS -->
+    </div>
+
+    <!-- Modal: Reprogramar Limpeza -->
+    <div id="modal-limpeza" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-top: 0;">Agendar Próxima Limpeza</h3>
+            <p id="modal-pc-nome" style="margin: 0;"></p>
+            <input type="date" id="nova-data-limpeza">
+            <button class="btn-primary" onclick="salvarNovaLimpeza()">Concluir e Agendar Nova</button>
+            <button onclick="fecharModalLimpeza()" style="background: #95a5a6; color: white; border: none;">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Modal: Relatórios (Pendentes/Concluídas) -->
+    <div id="modal-relatorio" class="modal">
+        <div class="modal-content wide">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px;">
+                <h2 id="relatorio-titulo" style="margin: 0;">Relatório</h2>
+                <button onclick="fecharRelatorio()" style="background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; padding: 5px 15px; font-weight: bold;">X Fechar</button>
+            </div>
+            
+            <div class="controls" style="box-shadow: none; padding: 10px 0; margin-bottom: 0;">
+                <div>
+                    <label>Filtrar por Tipo:</label><br>
+                    <select id="filtro-tipo-rel" onchange="renderizarTabelaRelatorio()">
+                        <option value="todas">Todas as Atividades</option>
+                        <option value="limpeza">Limpeza</option>
+                        <option value="peca">Peças / Manutenção</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Buscar no Relatório:</label><br>
+                    <input type="text" id="busca-relatorio" placeholder="Código ou Categoria..." onkeyup="renderizarTabelaRelatorio()">
+                </div>
+            </div>
+
+            <table class="table-relatorio">
+                <thead>
+                    <tr>
+                        <th>PC / IP</th>
+                        <th>Categoria</th>
+                        <th>Tipo</th>
+                        <th>Descrição</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-relatorio-body">
+                    <!-- Linhas geradas via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- FIREBASE & LOGICA DO SISTEMA -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue, push, update, remove } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDMgocHaQtH07v-aQc4tC4JcV3jNxY3tX0",
+            authDomain: "controle-armarios-14351.firebaseapp.com",
+            databaseURL: "https://controle-armarios-14351-default-rtdb.firebaseio.com",
+            projectId: "controle-armarios-14351",
+            storageBucket: "controle-armarios-14351.firebasestorage.app",
+            messagingSenderId: "171871598145",
+            appId: "1:171871598145:web:1a764d9a566576797838c0",
+            measurementId: "G-2HX5YVK5BT"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        
+        const rootPath = 'TI_Inteligente_app';
+        const maquinasRef = ref(db, `${rootPath}/maquinas`);
+
+        let maquinasData = {};
+        let maquinaAtualLimpeza = null;
+        let tipoRelatorioAtual = '';
+
+        onValue(maquinasRef, (snapshot) => {
+            maquinasData = snapshot.val() || {};
+            renderizarMaquinas();
+            // Atualiza tabela se o modal estiver aberto
+            if(document.getElementById('modal-relatorio').style.display === 'flex') {
+                renderizarTabelaRelatorio();
+            }
+        });
+
+        // ================= FUNÇÕES DE CADASTRO =================
+        window.cadastrarMaquina = function() {
+            const codigo = document.getElementById('cad-codigo').value.trim();
+            const categoria = document.getElementById('cad-categoria').value.trim();
+
+            if(!codigo || !categoria) {
+                alert("Preencha o Código e a Categoria!");
+                return;
+            }
+
+            const hojeStr = new Date().toISOString().split('T')[0];
+
+            set(ref(db, `${rootPath}/maquinas/${codigo}`), {
+                codigo: codigo,
+                categoria: categoria,
+                proxima_limpeza: hojeStr,
+                data_ultima_limpeza: hojeStr, // Base para calcular cor da limpeza
+                tarefas: {}
+            });
+
+            document.getElementById('cad-codigo').value = '';
+            document.getElementById('cad-categoria').value = '';
+        }
+
+        // ================= CÁLCULO PROPORCIONAL DE CORES =================
+        // Avalia o percentual de tempo restante desde a criação até a data limite
+        function obterClasseProporcional(dataAlvo, dataInicio) {
+            if (!dataAlvo) return 'safe';
+            
+            const hoje = new Date();
+            hoje.setHours(0,0,0,0);
+            
+            const alvo = new Date(dataAlvo);
+            alvo.setHours(0,0,0,0);
+            alvo.setDate(alvo.getDate() + 1); // Corrige offset
+            
+            let inicio;
+            if (dataInicio) {
+                inicio = new Date(dataInicio);
+                inicio.setHours(0,0,0,0);
+                inicio.setDate(inicio.getDate() + 1);
+            } else {
+                // Retroatividade para registros antigos sem data de início (assume janela de 30 dias)
+                inicio = new Date(alvo);
+                inicio.setDate(inicio.getDate() - 30);
+            }
+
+            const totalMs = alvo.getTime() - inicio.getTime();
+            const restanteMs = alvo.getTime() - hoje.getTime();
+            
+            if (restanteMs <= 0) return 'critical'; // Dia de hoje ou atrasado
+            if (totalMs <= 0) return 'warning-strong'; // Fallback de segurança
+
+            const percentualRestante = restanteMs / totalMs;
+
+            if (percentualRestante >= 0.50) return 'safe'; // + de 50% do tempo (Verde)
+            if (percentualRestante >= 0.25) return 'warning-light'; // 25 a 50% (Laranja Claro)
+            if (percentualRestante >= 0.10) return 'warning-strong'; // 10 a 25% (Laranja Forte)
+            return 'danger-light'; // menos de 10% (Vermelho)
+        }
+
+        function formatarData(dataString) {
+            if(!dataString) return '---';
+            const partes = dataString.split('-');
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+
+        // ================= RENDERIZAÇÃO PRINCIPAL =================
+        window.renderizarMaquinas = function() {
+            const grid = document.getElementById('maquinas-grid');
+            const termoBusca = document.getElementById('busca').value.toLowerCase();
+            grid.innerHTML = '';
+
+            let totalPcs = 0;
+            let tarefasPendentes = 0;
+            let tarefasConcluidas = 0;
+
+            for (const key in maquinasData) {
+                const pc = maquinasData[key];
+                
+                // Contagem total independente da busca
+                if (pc.tarefas) {
+                    for (const taskId in pc.tarefas) {
+                        const t = pc.tarefas[taskId];
+                        if (t.status === 'pendente' && t.tipo !== 'limpeza') tarefasPendentes++;
+                        if (t.status === 'concluida') tarefasConcluidas++;
+                    }
+                }
+
+                // Aplica filtro de busca visual
+                if (pc.codigo.toLowerCase().includes(termoBusca) || pc.categoria.toLowerCase().includes(termoBusca)) {
+                    totalPcs++;
+                    
+                    const classeLimpeza = obterClasseProporcional(pc.proxima_limpeza, pc.data_ultima_limpeza);
+                    
+                    let tarefasHTML = '';
+                    if (pc.tarefas) {
+                        for (const taskId in pc.tarefas) {
+                            const t = pc.tarefas[taskId];
+                            if (t.status === 'pendente' && t.tipo !== 'limpeza') {
+                                const classeTarefa = obterClasseProporcional(t.data, t.data_criacao);
+                                tarefasHTML += `
+                                    <div class="status-box ${classeTarefa}">
+                                        <span>🔧 ${t.descricao} (${formatarData(t.data)})</span>
+                                        <button class="btn-ok" onclick="concluirTarefa('${pc.codigo}', '${taskId}')">OK</button>
+                                    </div>
+                                `;
+                            }
+                        }
+                    }
+
+                    const card = `
+                        <div class="card">
+                            <div class="card-header">
+                                <h2>PC: ${pc.codigo}</h2>
+                                <span class="categoria-badge">${pc.categoria}</span>
+                            </div>
+                            
+                            <div>
+                                <strong>🧹 Próxima Limpeza:</strong>
+                                <div class="status-box ${classeLimpeza}">
+                                    <span>${formatarData(pc.proxima_limpeza)}</span>
+                                    <button class="btn-ok" onclick="abrirModalLimpeza('${pc.codigo}')">OK</button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <strong>⚙️ Peças / Manutenção:</strong>
+                                ${tarefasHTML || '<p style="font-size: 0.9em; color: #7f8c8d;">Tudo em dia.</p>'}
+                                
+                                <div class="add-task">
+                                    <input type="text" id="desc-${pc.codigo}" placeholder="Ex: Trocar RAM">
+                                    <input type="date" id="data-${pc.codigo}">
+                                    <button class="btn-primary" onclick="adicionarTarefa('${pc.codigo}')">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    grid.innerHTML += card;
+                }
+            }
+
+            document.getElementById('stat-maquinas').innerText = totalPcs;
+            document.getElementById('stat-pendentes').innerText = tarefasPendentes;
+            document.getElementById('stat-concluidas').innerText = tarefasConcluidas;
+        }
+
+        // ================= AÇÕES (PEÇAS E LIMPEZA) =================
+        window.adicionarTarefa = function(codigoPc) {
+            const desc = document.getElementById(`desc-${codigoPc}`).value;
+            const data = document.getElementById(`data-${codigoPc}`).value;
+
+            if(!desc || !data) {
+                alert("Preencha a descrição e a data da tarefa!");
+                return;
+            }
+
+            const hojeStr = new Date().toISOString().split('T')[0];
+
+            push(ref(db, `${rootPath}/maquinas/${codigoPc}/tarefas`), {
+                descricao: desc,
+                data: data,
+                data_criacao: hojeStr,
+                tipo: 'peca',
+                status: 'pendente'
+            });
+        }
+
+        window.concluirTarefa = function(codigoPc, taskId) {
+            if(confirm("Confirma que esta tarefa foi concluída?")) {
+                const hojeStr = new Date().toISOString().split('T')[0];
+                update(ref(db, `${rootPath}/maquinas/${codigoPc}/tarefas/${taskId}`), {
+                    status: 'concluida',
+                    data_conclusao: hojeStr
+                });
+            }
+        }
+
+        window.abrirModalLimpeza = function(codigoPc) {
+            maquinaAtualLimpeza = codigoPc;
+            document.getElementById('modal-pc-nome').innerText = `Agendar para o PC: ${codigoPc}`;
+            document.getElementById('modal-limpeza').style.display = 'flex';
+        }
+
+        window.fecharModalLimpeza = function() {
+            document.getElementById('modal-limpeza').style.display = 'none';
+            maquinaAtualLimpeza = null;
+        }
+
+        window.salvarNovaLimpeza = function() {
+            const novaData = document.getElementById('nova-data-limpeza').value;
+            if(!novaData) {
+                alert("Selecione a data para a próxima limpeza!");
+                return;
+            }
+
+            const hojeStr = new Date().toISOString().split('T')[0];
+
+            // 1. Registra a limpeza feita como uma tarefa concluída no histórico
+            push(ref(db, `${rootPath}/maquinas/${maquinaAtualLimpeza}/tarefas`), {
+                descricao: 'Limpeza Periódica Realizada',
+                data_conclusao: hojeStr,
+                tipo: 'limpeza',
+                status: 'concluida'
+            });
+
+            // 2. Atualiza os dados da próxima limpeza
+            update(ref(db, `${rootPath}/maquinas/${maquinaAtualLimpeza}`), {
+                proxima_limpeza: novaData,
+                data_ultima_limpeza: hojeStr // Importante para calcular a cor proporcional da nova data
+            }).then(() => {
+                fecharModalLimpeza();
+            });
+        }
+
+        // ================= MODAL RELATÓRIOS =================
+        window.abrirRelatorio = function(tipo) {
+            tipoRelatorioAtual = tipo;
+            document.getElementById('relatorio-titulo').innerText = tipo === 'pendente' ? '📋 Relatório de Pendências' : '✅ Relatório de Tarefas Concluídas';
+            document.getElementById('modal-relatorio').style.display = 'flex';
+            
+            // Forçar visualização padrão ao abrir
+            document.getElementById('filtro-tipo-rel').value = 'todas';
+            document.getElementById('busca-relatorio').value = '';
+            
+            renderizarTabelaRelatorio();
+        }
+        
+        window.fecharRelatorio = function() {
+            document.getElementById('modal-relatorio').style.display = 'none';
+        }
+
+        window.renderizarTabelaRelatorio = function() {
+            const tbody = document.getElementById('tabela-relatorio-body');
+            const filtroTipo = document.getElementById('filtro-tipo-rel').value;
+            const busca = document.getElementById('busca-relatorio').value.toLowerCase();
+            
+            tbody.innerHTML = '';
+            
+            for (const key in maquinasData) {
+                const pc = maquinasData[key];
+                if (pc.tarefas) {
+                    for (const taskId in pc.tarefas) {
+                        const t = pc.tarefas[taskId];
+                        
+                        if (t.status === tipoRelatorioAtual) {
+                            
+                            // Aplica filtros do Relatório
+                            if (filtroTipo !== 'todas' && t.tipo !== filtroTipo) continue;
+                            if (busca && !pc.codigo.toLowerCase().includes(busca) && !pc.categoria.toLowerCase().includes(busca) && !t.descricao.toLowerCase().includes(busca)) continue;
+                            
+                            const tipoBadge = t.tipo === 'limpeza' ? '<span class="badge-tipo badge-limpeza">🧹 Limpeza</span>' : '<span class="badge-tipo badge-peca">⚙️ Peça/Manutenção</span>';
+                            const dataExibicao = t.status === 'concluida' ? formatarData(t.data_conclusao) : formatarData(t.data);
+                            
+                            const tr = `
+                                <tr>
+                                    <td><strong>${pc.codigo}</strong></td>
+                                    <td>${pc.categoria}</td>
+                                    <td>${tipoBadge}</td>
+                                    <td>${t.descricao}</td>
+                                    <td>${dataExibicao}</td>
+                                </tr>
+                            `;
+                            tbody.innerHTML += tr;
+                        }
+                    }
+                }
+            }
+
+            if(tbody.innerHTML === '') {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color:#7f8c8d;">Nenhum registro encontrado.</td></tr>`;
+            }
+        }
+
+    </script>
+</body>
+</html>
